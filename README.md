@@ -24,9 +24,10 @@ An intelligent data analysis tool that combines natural language queries with au
 
 ### Installation
 
-1. **Clone and navigate to the project:**
+1. **Clone the repository:**
    ```bash
-   cd chatgpt-clone
+   git clone https://github.com/DorKaminsky/ChatGPT-Clone-Exercise.git
+   cd ChatGPT-Clone-Exercise
    ```
 
 2. **Install dependencies:**
@@ -245,6 +246,14 @@ This is an educational project. Feel free to:
 ## 📄 License
 
 MIT
+
+## 📚 Documentation
+
+Additional documentation can be found in the `/docs` directory:
+- [CLAUDE.md](docs/CLAUDE.md) - Project guidance for Claude Code
+- [IMPLEMENTATION-TASKS.md](docs/IMPLEMENTATION-TASKS.md) - Development task breakdown
+- [SPEC.md](docs/SPEC.md) - Original project specification
+- [Phase completion docs](docs/) - Detailed phase documentation
 
 ## 🙏 Acknowledgments
 
