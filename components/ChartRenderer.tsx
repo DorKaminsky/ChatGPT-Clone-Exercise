@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BarChart,
   Bar,
@@ -26,7 +26,12 @@ import {
   TableRow,
   Paper,
   Typography,
+  IconButton,
+  Stack,
+  Snackbar,
+  Alert,
 } from '@mui/material';
+import { Download, ZoomIn } from '@mui/icons-material';
 import { ChartData } from '@/lib/types';
 
 interface ChartRendererProps {
@@ -49,6 +54,8 @@ const COLORS = [
 
 const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
   const { type, data, config } = chartData;
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   // Handle empty data
   if (!data || data.length === 0) {
@@ -64,25 +71,101 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
     );
   }
 
-  try {
-    switch (type) {
-      case 'bar':
-        return <BarChartComponent data={data} config={config} />;
-      case 'pie':
-        return <PieChartComponent data={data} config={config} />;
-      case 'line':
-        return <LineChartComponent data={data} config={config} />;
-      case 'table':
-        return <TableComponent data={data} config={config} />;
-      case 'scatter':
-        return <LineChartComponent data={data} config={config} isScatter />;
-      default:
-        return (
-          <div className="p-4 bg-red-50 text-red-700 rounded-lg">
-            Unsupported chart type: {type}
-          </div>
-        );
+  // Export data as CSV
+  const exportToCSV = () => {
+    try {
+      const csvContent = convertToCSV(data);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `chart-data-${Date.now()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setSnackbarMessage('Data exported successfully!');
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Export error:', error);
+      setSnackbarMessage('Failed to export data');
+      setSnackbarOpen(true);
     }
+  };
+
+  // Convert data to CSV format
+  const convertToCSV = (data: any[]) => {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0]);
+    const csvRows = [
+      headers.join(','), // Header row
+      ...data.map(row =>
+        headers.map(header => {
+          const value = row[header];
+          // Escape values that contain commas or quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value ?? '';
+        }).join(',')
+      ),
+    ];
+    return csvRows.join('\n');
+  };
+
+  try {
+    return (
+      <>
+        {type !== 'table' && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            <IconButton
+              size="small"
+              onClick={exportToCSV}
+              title="Export data as CSV"
+              sx={{
+                bgcolor: 'primary.50',
+                '&:hover': { bgcolor: 'primary.100' },
+              }}
+            >
+              <Download fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
+
+        {(() => {
+          switch (type) {
+            case 'bar':
+              return <BarChartComponent data={data} config={config} />;
+            case 'pie':
+              return <PieChartComponent data={data} config={config} />;
+            case 'line':
+              return <LineChartComponent data={data} config={config} />;
+            case 'table':
+              return <TableComponent data={data} config={config} onExport={exportToCSV} />;
+            case 'scatter':
+              return <LineChartComponent data={data} config={config} isScatter />;
+            default:
+              return (
+                <div className="p-4 bg-red-50 text-red-700 rounded-lg">
+                  Unsupported chart type: {type}
+                </div>
+              );
+          }
+        })()}
+
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity="success" onClose={() => setSnackbarOpen(false)}>
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+      </>
+    );
   } catch (error) {
     console.error('Error rendering chart:', error);
     return (
@@ -101,8 +184,16 @@ const BarChartComponent: React.FC<{ data: any[]; config: any }> = ({
   data,
   config,
 }) => {
+  const [selectedBar, setSelectedBar] = useState<string | null>(null);
+
   // Determine if we should show all labels or sample them
   const shouldSampleLabels = data.length > 10;
+
+  // Handle bar click
+  const handleBarClick = (entry: any) => {
+    setSelectedBar(entry.name);
+    console.log('Bar clicked:', entry);
+  };
 
   // Custom tick component to show fewer labels if needed
   const CustomXAxisTick = (props: any) => {
@@ -189,7 +280,17 @@ const BarChartComponent: React.FC<{ data: any[]; config: any }> = ({
             fill={COLORS[0]}
             radius={[8, 8, 0, 0]}
             name={config.yAxis || 'Value'}
-          />
+            onClick={handleBarClick}
+            cursor="pointer"
+          >
+            {data.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={selectedBar === entry.name ? COLORS[4] : COLORS[0]}
+                opacity={selectedBar && selectedBar !== entry.name ? 0.5 : 1}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </Box>
@@ -201,6 +302,8 @@ const PieChartComponent: React.FC<{ data: any[]; config: any }> = ({
   data,
   config,
 }) => {
+  const [selectedSlice, setSelectedSlice] = useState<number | null>(null);
+
   // Calculate total for percentages
   const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
 
@@ -208,6 +311,12 @@ const PieChartComponent: React.FC<{ data: any[]; config: any }> = ({
   const renderLabel = (entry: any) => {
     const percent = ((entry.value / total) * 100).toFixed(1);
     return `${entry.name}: ${percent}%`;
+  };
+
+  // Handle slice click
+  const handlePieClick = (data: any, index: number) => {
+    setSelectedSlice(index === selectedSlice ? null : index);
+    console.log('Pie slice clicked:', data);
   };
 
   return (
@@ -239,11 +348,18 @@ const PieChartComponent: React.FC<{ data: any[]; config: any }> = ({
             fill="#8884d8"
             dataKey="value"
             nameKey="name"
+            onClick={handlePieClick}
+            cursor="pointer"
           >
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
                 fill={COLORS[index % COLORS.length]}
+                opacity={selectedSlice !== null && selectedSlice !== index ? 0.5 : 1}
+                style={{
+                  transform: selectedSlice === index ? 'scale(1.05)' : 'scale(1)',
+                  transition: 'all 0.3s ease',
+                }}
               />
             ))}
           </Pie>
@@ -355,9 +471,10 @@ const LineChartComponent: React.FC<{
 };
 
 // Table Component
-const TableComponent: React.FC<{ data: any[]; config: any }> = ({
+const TableComponent: React.FC<{ data: any[]; config: any; onExport: () => void }> = ({
   data,
   config,
+  onExport,
 }) => {
   // Extract column names from first row
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
@@ -395,10 +512,21 @@ const TableComponent: React.FC<{ data: any[]; config: any }> = ({
       }}
     >
       {config.title && (
-        <Box sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ px: 3, py: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" fontWeight={600}>
             {config.title}
           </Typography>
+          <IconButton
+            size="small"
+            onClick={onExport}
+            title="Export data as CSV"
+            sx={{
+              bgcolor: 'primary.50',
+              '&:hover': { bgcolor: 'primary.100' },
+            }}
+          >
+            <Download fontSize="small" />
+          </IconButton>
         </Box>
       )}
       <TableContainer sx={{ maxHeight: 400 }}>

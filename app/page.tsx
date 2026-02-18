@@ -25,6 +25,8 @@ import {
 import FileUpload from '@/components/FileUpload';
 import ChatInterface from '@/components/ChatInterface';
 import SuccessConfetti from '@/components/SuccessConfetti';
+import DataPreview from '@/components/DataPreview';
+import SmartInsights from '@/components/SmartInsights';
 import type { UploadResponse } from '@/lib/types';
 
 export default function Home() {
@@ -385,6 +387,16 @@ export default function Home() {
                 </Button>
               </Stack>
             </Paper>
+
+            {/* Data Preview */}
+            <DataPreview schema={uploadedData.schema} preview={uploadedData.preview} />
+
+            {/* Smart Insights */}
+            <SmartInsights
+              schema={uploadedData.schema}
+              preview={uploadedData.preview}
+              dataSourceId={uploadedData.dataSourceId}
+            />
 
             {/* Example Query Chips */}
             <Box mb={3}>
