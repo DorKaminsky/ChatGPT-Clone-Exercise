@@ -10,9 +10,11 @@ import {
   CircularProgress,
   Stack,
   Alert,
-  Fade
+  Fade,
+  Tooltip,
+  Chip
 } from '@mui/material';
-import { Send } from '@mui/icons-material';
+import { Send, FlashOn, FlashOff } from '@mui/icons-material';
 import { Message as MessageType, DataSchema, ChatRequest, ChatResponse } from '@/lib/types';
 import Message from './Message';
 import ModelSelector from './ModelSelector';
@@ -39,6 +41,7 @@ export default function ChatInterface({
   const [loadingStage, setLoadingStage] = useState<LoadingStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('claude-sonnet-4-5');
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -66,22 +69,108 @@ export default function ChatInterface({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  // Streaming handler
+  const handleStreamingSubmit = async (query: string) => {
+    setIsLoading(true);
+    setLoadingStage('analyzing');
 
-    setError(null);
+    try {
+      const request: ChatRequest = {
+        query,
+        dataSourceId,
+        conversationContext: messages.slice(-5).map((m) => m.content),
+        model: selectedModel,
+      };
 
-    const userMessage: MessageType = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputValue.trim(),
-      timestamp: new Date(),
-    };
+      const response = await fetch('/api/chat-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
 
-    setMessages((prev) => [...prev, userMessage]);
-    const query = inputValue.trim();
-    setInputValue('');
+      if (!response.ok) {
+        throw new Error(`Failed to get response: ${response.statusText}`);
+      }
+
+      // Create placeholder message for streaming
+      const messageId = (Date.now() + 1).toString();
+      const aiMessage: MessageType = {
+        id: messageId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Read stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = '';
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === 'status') {
+                setLoadingMessage(data.message);
+              } else if (data.type === 'text') {
+                accumulatedText += data.content;
+                // Update message with accumulated text
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === messageId ? { ...msg, content: accumulatedText } : msg
+                  )
+                );
+              } else if (data.type === 'visualization') {
+                // Add visualization to message
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === messageId ? { ...msg, visualization: data.data } : msg
+                  )
+                );
+              } else if (data.type === 'done') {
+                setIsLoading(false);
+                setLoadingStage(null);
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error('Error parsing stream data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Streaming error:', err);
+      setError(err.message || 'An error occurred. Please try again.');
+      setLoadingStage(null);
+
+      // Add error message to chat
+      const errorMessage: MessageType = {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${err.message}. Please try again.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setLoadingStage(null);
+    }
+  };
+
+  // Regular (non-streaming) handler
+  const handleRegularSubmit = async (query: string) => {
     setIsLoading(true);
     setLoadingStage('analyzing');
 
@@ -142,6 +231,31 @@ export default function ChatInterface({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || isLoading) return;
+
+    setError(null);
+
+    const userMessage: MessageType = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputValue.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    const query = inputValue.trim();
+    setInputValue('');
+
+    // Choose streaming or regular mode
+    if (streamingEnabled) {
+      await handleStreamingSubmit(query);
+    } else {
+      await handleRegularSubmit(query);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -191,10 +305,28 @@ export default function ChatInterface({
               {schema.rowCount.toLocaleString()} rows • {schema.columns.length} columns
             </Typography>
           </Box>
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-          />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Tooltip title={streamingEnabled ? 'Streaming mode: responses appear word-by-word' : 'Regular mode: complete response at once'}>
+              <Chip
+                icon={streamingEnabled ? <FlashOn /> : <FlashOff />}
+                label={streamingEnabled ? 'Streaming' : 'Regular'}
+                onClick={() => setStreamingEnabled(!streamingEnabled)}
+                size="small"
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.3)',
+                  },
+                }}
+              />
+            </Tooltip>
+            <ModelSelector
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
+          </Stack>
         </Box>
       </Box>
 
