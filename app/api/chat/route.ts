@@ -7,7 +7,7 @@ import type { ChatRequest, ChatResponse, ChartData } from '@/lib/types';
 export async function POST(request: NextRequest) {
   try {
     const body: ChatRequest = await request.json();
-    const { query, dataSourceId } = body;
+    const { query, dataSourceId, model } = body;
 
     // Validate request
     if (!query || !dataSourceId) {
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 2: Initialize LLM service
-    const llmService = new LLMService();
+    // Step 2: Initialize LLM service with selected model
+    const llmService = new LLMService(undefined, model);
 
     // Step 3: Phase 1 - Analyze query to understand intent
     console.log('Analyzing query:', query);

@@ -31,16 +31,35 @@ const AIResponseSchema = z.object({
 
 export class LLMService {
   private client: Anthropic;
-  private model = 'claude-3-5-sonnet-20241022'; // Using Claude 3.5 Sonnet (most capable available model)
+  private model = 'claude-sonnet-4-5'; // Default: Claude Sonnet 4.5
   private maxRetries = 3;
   private retryDelay = 1000; // ms
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, model?: string) {
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
       throw new Error('ANTHROPIC_API_KEY is required');
     }
     this.client = new Anthropic({ apiKey: key });
+
+    // Allow model override
+    if (model) {
+      this.model = model;
+    }
+  }
+
+  /**
+   * Set the model to use for subsequent requests
+   */
+  setModel(model: string): void {
+    this.model = model;
+  }
+
+  /**
+   * Get the current model
+   */
+  getModel(): string {
+    return this.model;
   }
 
   /**
@@ -341,7 +360,7 @@ Return ONLY valid JSON, no additional text or markdown formatting.`;
   }
 }
 
-// Export singleton instance (optional, can also instantiate as needed)
-export function createLLMService(apiKey?: string): LLMService {
-  return new LLMService(apiKey);
+// Export factory function
+export function createLLMService(apiKey?: string, model?: string): LLMService {
+  return new LLMService(apiKey, model);
 }

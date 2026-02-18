@@ -2,14 +2,15 @@
 
 An intelligent data analysis tool that combines natural language queries with automatic visualizations. Upload your Excel files, ask questions in plain English, and get instant insights with beautiful charts.
 
-![Powered by Claude 3.5 Sonnet](https://img.shields.io/badge/AI-Claude%203.5%20Sonnet-7c3aed)
+![Powered by Claude AI](https://img.shields.io/badge/AI-Claude%20Sonnet%204.5-7c3aed)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![Material-UI](https://img.shields.io/badge/Material--UI-Latest-blue)
 
 ## ✨ Features
 
 - 📊 **Excel File Analysis** - Upload .xlsx/.xls files and query your data instantly
-- 🤖 **AI-Powered Insights** - Claude 3.5 Sonnet understands your questions and generates intelligent responses
+- 🤖 **AI-Powered Insights** - Claude AI (Sonnet 4.5 or other available models) understands your questions and generates intelligent responses
+- 🎛️ **Model Selection** - Choose from available Claude models based on your API access
 - 📈 **Automatic Visualizations** - AI selects the best chart type (bar, pie, line, table) for your query
 - 💬 **Natural Language Interface** - No SQL or coding required - just ask questions
 - 🎨 **Modern UI** - Beautiful, responsive interface built with Material-UI
@@ -78,7 +79,7 @@ An intelligent data analysis tool that combines natural language queries with au
 
 - **Frontend:** Next.js 16 (App Router), React 19, Material-UI 6
 - **Backend:** Next.js API Routes
-- **AI:** Claude 3.5 Sonnet via Anthropic SDK
+- **AI:** Claude models (Sonnet 4.5, 3.5 Sonnet, and more) via Anthropic SDK
 - **Data Processing:** xlsx library for Excel parsing
 - **Visualizations:** Recharts
 - **Type Safety:** TypeScript
@@ -225,7 +226,8 @@ The AI automatically selects the best visualization:
 ## 🐛 Troubleshooting
 
 ### "Model not available" error
-- Check your API key has access to Claude 3.5 Sonnet
+- The app automatically detects available models based on your API key
+- If no models appear, check your Anthropic account tier and API key
 - Verify `ANTHROPIC_API_KEY` is set in `.env.local`
 
 ### "Data source not found" error
@@ -257,7 +259,7 @@ Additional documentation can be found in the `/docs` directory:
 
 ## 🙏 Acknowledgments
 
-- **Claude 3.5 Sonnet** by Anthropic for AI capabilities
+- **Claude AI** by Anthropic for AI capabilities (Sonnet 4.5, 3.5 Sonnet, and more)
 - **Next.js** for the full-stack framework
 - **Material-UI** for beautiful components
 - **Recharts** for visualization library

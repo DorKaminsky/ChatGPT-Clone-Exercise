@@ -76,6 +76,13 @@ export interface ChatRequest {
   query: string;
   dataSourceId: string;
   conversationContext?: string[];
+  model?: string;
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export interface ChatResponse {

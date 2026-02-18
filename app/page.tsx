@@ -75,7 +75,7 @@ export default function Home() {
         <Box textAlign="center" mb={6}>
           <Chip
             icon={<AutoAwesome sx={{ fontSize: 16 }} />}
-            label="Powered by Claude 3.5 Sonnet"
+            label="Powered by Claude AI"
             color="primary"
             variant="outlined"
             sx={{ mb: 3, fontWeight: 600 }}

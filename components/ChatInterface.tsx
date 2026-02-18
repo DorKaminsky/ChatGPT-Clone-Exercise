@@ -14,6 +14,7 @@ import {
 import { Send } from '@mui/icons-material';
 import { Message as MessageType, DataSchema, ChatRequest, ChatResponse } from '@/lib/types';
 import Message from './Message';
+import ModelSelector from './ModelSelector';
 
 interface ChatInterfaceProps {
   dataSourceId: string;
@@ -32,6 +33,7 @@ export default function ChatInterface({
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('claude-sonnet-4-5');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +65,7 @@ export default function ChatInterface({
         query,
         dataSourceId,
         conversationContext: messages.slice(-5).map((m) => m.content),
+        model: selectedModel,
       };
 
       const response = await fetch('/api/chat', {
@@ -150,12 +153,20 @@ export default function ChatInterface({
           color: 'white',
         }}
       >
-        <Typography variant="h6" fontWeight={600}>
-          Chat with your data
-        </Typography>
-        <Typography variant="caption" sx={{ opacity: 0.9 }}>
-          {schema.rowCount.toLocaleString()} rows • {schema.columns.length} columns
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              Chat with your data
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              {schema.rowCount.toLocaleString()} rows • {schema.columns.length} columns
+            </Typography>
+          </Box>
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+          />
+        </Box>
       </Box>
 
       {/* Messages Area */}
