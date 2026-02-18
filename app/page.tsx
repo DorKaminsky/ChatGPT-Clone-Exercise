@@ -10,7 +10,8 @@ import {
   CardContent,
   Stack,
   Button,
-  Paper
+  Paper,
+  CircularProgress
 } from '@mui/material';
 import {
   Upload,
@@ -18,18 +19,57 @@ import {
   TrendingUp,
   PieChart,
   BarChart,
-  Insights
+  Insights,
+  PlayArrow
 } from '@mui/icons-material';
 import FileUpload from '@/components/FileUpload';
 import ChatInterface from '@/components/ChatInterface';
+import SuccessConfetti from '@/components/SuccessConfetti';
 import type { UploadResponse } from '@/lib/types';
 
 export default function Home() {
   const [uploadedData, setUploadedData] = useState<UploadResponse | null>(null);
   const [fillQuery, setFillQuery] = useState<((query: string) => void) | null>(null);
+  const [loadingSample, setLoadingSample] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const handleUploadSuccess = (data: UploadResponse) => {
     setUploadedData(data);
+    setShowConfetti(true);
+  };
+
+  const loadSampleData = async () => {
+    try {
+      setLoadingSample(true);
+
+      // Fetch the sample file
+      const response = await fetch('/sample-sales-data.xlsx');
+      const blob = await response.blob();
+      const file = new File([blob], 'sample-sales-data.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+
+      // Upload it
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch('/api/data/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to load sample data');
+      }
+
+      const data = await uploadResponse.json();
+      handleUploadSuccess(data);
+    } catch (error) {
+      console.error('Failed to load sample data:', error);
+      alert('Failed to load sample data. Please try uploading your own file.');
+    } finally {
+      setLoadingSample(false);
+    }
   };
 
   const handleExampleClick = (query: string) => {
@@ -63,13 +103,15 @@ export default function Home() {
   ];
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #f3e8ff 0%, #ffffff 50%, #dbeafe 100%)',
-        py: 6
-      }}
-    >
+    <>
+      <SuccessConfetti show={showConfetti} />
+      <Box
+        sx={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #f3e8ff 0%, #ffffff 50%, #dbeafe 100%)',
+          py: 6
+        }}
+      >
       <Container maxWidth="lg">
         {/* Header */}
         <Box textAlign="center" mb={6}>
@@ -115,6 +157,27 @@ export default function Home() {
                 Upload Your Data
               </Typography>
               <FileUpload onUploadSuccess={handleUploadSuccess} />
+
+              {/* Sample Data Button */}
+              <Box sx={{ textAlign: 'center', mt: 3 }}>
+                <Typography variant="body2" color="text.secondary" mb={2}>
+                  Don't have data? Try our sample dataset
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={loadingSample ? <CircularProgress size={16} /> : <PlayArrow />}
+                  onClick={loadSampleData}
+                  disabled={loadingSample}
+                  size="large"
+                  sx={{
+                    borderRadius: 2,
+                    textTransform: 'none',
+                    px: 4,
+                  }}
+                >
+                  {loadingSample ? 'Loading Sample Data...' : 'Try with Sample Data'}
+                </Button>
+              </Box>
             </Box>
 
             {/* Example Queries - 2x2 Grid */}
@@ -360,5 +423,6 @@ export default function Home() {
         )}
       </Container>
     </Box>
+    </>
   );
 }

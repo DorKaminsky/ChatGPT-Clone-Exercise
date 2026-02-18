@@ -9,12 +9,15 @@ import {
   Typography,
   CircularProgress,
   Stack,
-  Alert
+  Alert,
+  Fade
 } from '@mui/material';
 import { Send } from '@mui/icons-material';
 import { Message as MessageType, DataSchema, ChatRequest, ChatResponse } from '@/lib/types';
 import Message from './Message';
 import ModelSelector from './ModelSelector';
+import EmptyState from './EmptyState';
+import { LOADING_MESSAGES, type LoadingStage } from '@/lib/loading-messages';
 
 interface ChatInterfaceProps {
   dataSourceId: string;
@@ -32,10 +35,31 @@ export default function ChatInterface({
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [loadingStage, setLoadingStage] = useState<LoadingStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('claude-sonnet-4-5');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Cycle through loading messages
+  useEffect(() => {
+    if (!loadingStage) {
+      setLoadingMessage('');
+      return;
+    }
+
+    const messages = LOADING_MESSAGES[loadingStage];
+    let index = 0;
+    setLoadingMessage(messages[0]);
+
+    const interval = setInterval(() => {
+      index = (index + 1) % messages.length;
+      setLoadingMessage(messages[index]);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [loadingStage]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -59,6 +83,7 @@ export default function ChatInterface({
     const query = inputValue.trim();
     setInputValue('');
     setIsLoading(true);
+    setLoadingStage('analyzing');
 
     try {
       const request: ChatRequest = {
@@ -75,6 +100,8 @@ export default function ChatInterface({
         },
         body: JSON.stringify(request),
       });
+
+      setLoadingStage('generating');
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -99,6 +126,7 @@ export default function ChatInterface({
     } catch (err: any) {
       console.error('Chat error:', err);
       setError(err.message || 'An error occurred. Please try again.');
+      setLoadingStage(null);
 
       // Add error message to chat
       const errorMessage: MessageType = {
@@ -110,6 +138,7 @@ export default function ChatInterface({
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setLoadingStage(null);
     }
   };
 
@@ -179,49 +208,38 @@ export default function ChatInterface({
         }}
       >
         {messages.length === 0 ? (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              textAlign: 'center',
-            }}
-          >
-            <Box>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                Ready to analyze your data!
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Ask a question about your data to get started
-              </Typography>
-            </Box>
-          </Box>
+          <EmptyState
+            icon="💬"
+            title="Ready to analyze your data!"
+            description="Ask a question about your data to get started. Try asking about trends, comparisons, or specific data points."
+          />
         ) : (
           <>
             {messages.map((message) => (
               <Message key={message.id} message={message} />
             ))}
             {isLoading && (
-              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Box sx={{ width: 36 }} /> {/* Spacer for alignment */}
-                <Paper
-                  elevation={1}
-                  sx={{
-                    px: 3,
-                    py: 2,
-                    borderRadius: 3,
-                    background: '#f3f4f6',
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <CircularProgress size={16} />
-                    <Typography variant="body2" color="text.secondary">
-                      Analyzing your data...
-                    </Typography>
-                  </Stack>
-                </Paper>
-              </Box>
+              <Fade in>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                  <Box sx={{ width: 36 }} /> {/* Spacer for alignment */}
+                  <Paper
+                    elevation={1}
+                    sx={{
+                      px: 3,
+                      py: 2,
+                      borderRadius: 3,
+                      background: '#f3f4f6',
+                    }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CircularProgress size={16} />
+                      <Typography variant="body2" color="text.secondary">
+                        {loadingMessage || 'Processing...'}
+                      </Typography>
+                    </Stack>
+                  </Paper>
+                </Box>
+              </Fade>
             )}
             <div ref={messagesEndRef} />
           </>

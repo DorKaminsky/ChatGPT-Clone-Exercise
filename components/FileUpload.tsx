@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -27,6 +27,7 @@ import {
   Description
 } from '@mui/icons-material';
 import type { UploadResponse } from '@/lib/types';
+import { LOADING_MESSAGES } from '@/lib/loading-messages';
 
 interface FileUploadProps {
   onUploadSuccess?: (response: UploadResponse) => void;
@@ -37,7 +38,27 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedData, setUploadedData] = useState<UploadResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cycle through upload loading messages
+  useEffect(() => {
+    if (!isUploading) {
+      setLoadingMessage('');
+      return;
+    }
+
+    const messages = LOADING_MESSAGES.upload;
+    let index = 0;
+    setLoadingMessage(messages[0]);
+
+    const interval = setInterval(() => {
+      index = (index + 1) % messages.length;
+      setLoadingMessage(messages[index]);
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isUploading]);
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -275,8 +296,11 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
           // Loading State
           <Stack spacing={3} alignItems="center" py={4}>
             <CircularProgress size={60} />
-            <Typography variant="h6" color="text.secondary">
-              Uploading and analyzing your file...
+            <Typography variant="h6" color="primary" fontWeight={600}>
+              {loadingMessage || 'Processing...'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              This may take a few moments
             </Typography>
           </Stack>
         ) : (

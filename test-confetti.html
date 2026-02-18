@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Confetti Test</title>
+</head>
+<body>
+    <h1>Testing Confetti Component</h1>
+    <button id="testBtn">Trigger Confetti</button>
+    <div id="status"></div>
+
+    <script>
+        // Simple test
+        document.getElementById('testBtn').addEventListener('click', () => {
+            document.getElementById('status').innerHTML = 'Confetti should appear now...';
+
+            // Check if confetti component is working
+            fetch('http://localhost:3000').then(() => {
+                document.getElementById('status').innerHTML += '<br>Server is running';
+            });
+        });
+    </script>
+</body>
+</html>

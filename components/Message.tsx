@@ -1,7 +1,9 @@
 'use client';
 
-import { Box, Paper, Avatar, Typography, Stack } from '@mui/material';
-import { Person, SmartToy } from '@mui/icons-material';
+import { useState } from 'react';
+import { Box, Paper, Avatar, Typography, IconButton, Tooltip } from '@mui/material';
+import { Person, SmartToy, ContentCopy, Check } from '@mui/icons-material';
+import { motion } from 'framer-motion';
 import { Message as MessageType } from '@/lib/types';
 import ChartRenderer from './ChartRenderer';
 
@@ -11,10 +13,21 @@ interface MessageProps {
 
 export default function Message({ message }: MessageProps) {
   const isUser = message.role === 'user';
+  const [copied, setCopied] = useState(false);
   const timestamp = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
 
   // Simple markdown rendering for bold and lists
   const renderContent = (text: string) => {
@@ -68,14 +81,19 @@ export default function Message({ message }: MessageProps) {
   };
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: isUser ? 'row-reverse' : 'row',
-        gap: 2,
-        mb: 3,
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: isUser ? 'row-reverse' : 'row',
+          gap: 2,
+          mb: 3,
+        }}
+      >
       {/* Avatar */}
       <Avatar
         sx={{
@@ -90,7 +108,40 @@ export default function Message({ message }: MessageProps) {
       </Avatar>
 
       {/* Message Content */}
-      <Box sx={{ maxWidth: '80%' }}>
+      <Box sx={{ maxWidth: '80%', position: 'relative' }}>
+        {/* Copy Button - Only for AI messages */}
+        {!isUser && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              zIndex: 1,
+            }}
+          >
+            <Tooltip title={copied ? "Copied!" : "Copy response"} arrow>
+              <IconButton
+                size="small"
+                onClick={handleCopy}
+                sx={{
+                  bgcolor: 'background.paper',
+                  boxShadow: 1,
+                  '&:hover': {
+                    bgcolor: 'background.paper',
+                    boxShadow: 2,
+                  },
+                }}
+              >
+                {copied ? (
+                  <Check sx={{ fontSize: 16, color: 'success.main' }} />
+                ) : (
+                  <ContentCopy sx={{ fontSize: 16 }} />
+                )}
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
+
         <Paper
           elevation={1}
           sx={{
@@ -122,11 +173,18 @@ export default function Message({ message }: MessageProps) {
 
         {/* Chart Visualization */}
         {message.visualization && (
-          <Box sx={{ mt: 2 }}>
-            <ChartRenderer chartData={message.visualization} />
-          </Box>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+          >
+            <Box sx={{ mt: 2 }}>
+              <ChartRenderer chartData={message.visualization} />
+            </Box>
+          </motion.div>
         )}
       </Box>
     </Box>
+    </motion.div>
   );
 }
