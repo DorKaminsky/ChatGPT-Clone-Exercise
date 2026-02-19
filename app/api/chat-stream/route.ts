@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: ChatRequest = await request.json();
-    const { query, dataSourceId, model } = body;
+    const { query, dataSourceId, conversationHistory, model } = body;
 
     // Validate request
     if (!query || !dataSourceId) {
@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
           const analysis = await llmService.analyzeQuery(
             query,
             parsedData.schema,
-            parsedData.preview
+            parsedData.preview,
+            conversationHistory
           );
 
           // Step 4: Process data based on analysis
@@ -85,57 +86,56 @@ export async function POST(request: NextRequest) {
             )
           );
 
-          // Step 6: Stream the response using Anthropic streaming
-          const anthropic = new Anthropic({
-            apiKey: process.env.ANTHROPIC_API_KEY,
-          });
-
-          const prompt = buildResponsePrompt(query, dataForLLM, parsedData.schema);
-
-          // Use the model from LLMService or default
-          const selectedModel = llmService.getModel();
-
-          const stream = await anthropic.messages.stream({
-            model: selectedModel,
-            max_tokens: 4096,
-            messages: [{ role: 'user', content: prompt }],
-          });
-
-          let fullResponse = '';
-
-          // First, collect the full response
-          for await (const chunk of stream) {
-            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-              fullResponse += chunk.delta.text;
-            }
-          }
-
-          // Step 7: Parse the complete response to extract JSON
-          const aiResponse = parseAIResponse(fullResponse);
-
-          // Step 8: Stream only the user-facing text (not the JSON)
-          const textToStream = aiResponse.answer;
-
-          // Stream the text in small chunks for smooth appearance
-          const chunkSize = 3; // Stream 3 characters at a time
-          for (let i = 0; i < textToStream.length; i += chunkSize) {
-            const chunk = textToStream.slice(i, i + chunkSize);
+          // Step 6: Stream the response using new plain text approach
+          for await (const chunk of llmService.generateResponseStream(
+            query,
+            dataForLLM,
+            parsedData.schema,
+            conversationHistory
+          )) {
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`
               )
             );
-            // Small delay for smoother streaming effect
-            await new Promise(resolve => setTimeout(resolve, 20));
           }
 
-          // Step 9: Generate chart if needed
-          if (aiResponse.visualization) {
+          // Step 7: Generate visualization based on analysis (not LLM)
+          if (analysis.needsVisualization && dataForLLM.length > 0) {
             try {
+              // Determine chart type based on aggregation and data
+              let chartType: 'bar' | 'pie' | 'line' | 'scatter' | 'table' = 'bar';
+
+              if (analysis.aggregation === 'groupby' || analysis.aggregation === 'sum') {
+                chartType = 'bar';
+              } else if (analysis.aggregation === 'count') {
+                chartType = 'bar';
+              } else if (analysis.aggregation === 'none' && dataForLLM.length > 5) {
+                chartType = 'table';
+              }
+
+              // Check if it's time-series data
+              const hasDateColumn = analysis.dataNeeded.columns.some(col => {
+                const columnDef = parsedData.schema.columns.find((c: any) => c.name === col);
+                return columnDef?.type === 'date';
+              });
+              if (hasDateColumn && chartType === 'bar') {
+                chartType = 'line';
+              }
+
+              // Get appropriate column mapping
+              const columns = analysis.dataNeeded.columns;
+              const dataMapping = {
+                xAxis: columns[0] || 'name',
+                yAxis: columns[1] || 'value',
+                nameField: columns[0] || 'name',
+                valueField: columns[1] || 'value',
+              };
+
               const visualization = chartSpecGenerator.generateSpec(
-                aiResponse.visualization.type,
+                chartType,
                 dataForLLM,
-                aiResponse.visualization.dataMapping
+                dataMapping
               );
 
               controller.enqueue(
@@ -182,81 +182,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Helper function to build response prompt
-function buildResponsePrompt(query: string, data: any[], schema: any): string {
-  return `You are a data analysis assistant. Answer the user's question about their data.
-
-User Question: ${query}
-
-Data Schema:
-${schema.columns.map((c: any) => `- ${c.name} (${c.type})`).join('\n')}
-
-Sample Data (first ${data.length} rows):
-${JSON.stringify(data, null, 2)}
-
-Instructions:
-1. Provide a clear, concise answer to the question
-2. Include specific numbers and insights from the data
-3. If a visualization would help, suggest the appropriate chart type
-4. End your response with a JSON block for visualization if needed:
-
-{
-  "answer": "Your text response here",
-  "visualization": {
-    "type": "bar|pie|line|scatter|table",
-    "reason": "Why this chart type",
-    "dataMapping": {
-      "xAxis": "column_name",
-      "yAxis": "column_name",
-      "nameField": "column_name",
-      "valueField": "column_name"
-    }
-  }
-}`;
-}
-
-// Helper function to parse AI response
-function parseAIResponse(response: string): any {
-  try {
-    // Look for JSON code block (```json ... ```)
-    const jsonCodeBlockMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonCodeBlockMatch) {
-      const jsonStr = jsonCodeBlockMatch[1];
-      const parsed = JSON.parse(jsonStr);
-
-      // Extract the text before the JSON block
-      const textBeforeJson = response.substring(0, jsonCodeBlockMatch.index).trim();
-
-      return {
-        answer: textBeforeJson || parsed.answer || response,
-        visualization: parsed.visualization,
-      };
-    }
-
-    // Fallback: Try to extract plain JSON
-    const jsonMatch = response.match(/\{[\s\S]*"visualization"[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      // Extract text before JSON
-      const textBeforeJson = response.substring(0, jsonMatch.index).trim();
-
-      return {
-        answer: textBeforeJson || parsed.answer || response,
-        visualization: parsed.visualization,
-      };
-    }
-  } catch (error) {
-    console.error('Error parsing AI response:', error);
-  }
-
-  // If no JSON found or parsing fails, return full response as text
-  return {
-    answer: response,
-    visualization: undefined,
-  };
 }
 
 // Helper function to apply aggregation

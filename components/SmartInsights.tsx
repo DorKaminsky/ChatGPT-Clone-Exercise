@@ -171,40 +171,54 @@ export default function SmartInsights({ schema, preview, dataSourceId }: SmartIn
     const lines = rawInsights.split('\n').filter(line => line.trim());
 
     lines.forEach(line => {
+      // Clean up markdown formatting (remove ** for bold, remove numbered list markers)
+      let cleanLine = line
+        .replace(/^\*\*\d+\.\s*/, '') // Remove "**1. " at start
+        .replace(/^\d+\.\s*/, '')      // Remove "1. " at start
+        .replace(/\*\*/g, '')          // Remove all ** (bold markers)
+        .trim();
+
+      if (!cleanLine) return;
+
       // Try to detect insight type from keywords
       let type: Insight['type'] = 'info';
       let color: Insight['color'] = 'info';
       let icon = <Lightbulb />;
 
-      if (line.includes('trend') || line.includes('increase') || line.includes('growth')) {
+      const lowerLine = cleanLine.toLowerCase();
+      if (lowerLine.includes('trend') || lowerLine.includes('increase') || lowerLine.includes('growth')) {
         type = 'trend';
         color = 'primary';
         icon = <TrendingUp />;
-      } else if (line.includes('warning') || line.includes('missing') || line.includes('concern')) {
+      } else if (lowerLine.includes('warning') || lowerLine.includes('missing') || lowerLine.includes('concern') || lowerLine.includes('issue')) {
         type = 'warning';
         color = 'warning';
         icon = <Warning />;
-      } else if (line.includes('success') || line.includes('excellent') || line.includes('good')) {
+      } else if (lowerLine.includes('success') || lowerLine.includes('excellent') || lowerLine.includes('good') || lowerLine.includes('perfect')) {
         type = 'success';
         color = 'success';
         icon = <CheckCircle />;
       }
 
-      // Extract title and description (split on first colon or period)
-      const parts = line.split(/[:.]/);
-      if (parts.length >= 2) {
+      // Extract title and description (split on first colon)
+      const colonIndex = cleanLine.indexOf(':');
+      if (colonIndex > 0) {
+        const title = cleanLine.substring(0, colonIndex).trim();
+        const description = cleanLine.substring(colonIndex + 1).trim();
+
         parsed.push({
           type,
-          title: parts[0].trim(),
-          description: parts.slice(1).join('. ').trim(),
+          title,
+          description,
           icon,
           color,
         });
       } else {
+        // No colon found, use whole line as description
         parsed.push({
           type,
           title: 'Insight',
-          description: line.trim(),
+          description: cleanLine,
           icon,
           color,
         });

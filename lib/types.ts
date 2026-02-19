@@ -72,10 +72,19 @@ export interface UploadResponse {
   preview: any[];
 }
 
+export interface UploadedFile {
+  id: string;
+  name: string;
+  dataSourceId: string;
+  schema: DataSchema;
+  preview: any[];
+  uploadedAt: Date;
+}
+
 export interface ChatRequest {
   query: string;
   dataSourceId: string;
-  conversationContext?: string[];
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   model?: string;
 }
 

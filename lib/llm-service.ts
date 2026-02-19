@@ -31,7 +31,7 @@ const AIResponseSchema = z.object({
 
 export class LLMService {
   private client: Anthropic;
-  private model = 'claude-sonnet-4-5'; // Default: Claude Sonnet 4.5
+  private model = 'claude-sonnet-4-20250514'; // Latest Claude 4 model (Opus 4 not yet available)
   private maxRetries = 3;
   private retryDelay = 1000; // ms
 
@@ -68,12 +68,17 @@ export class LLMService {
   async analyzeQuery(
     query: string,
     schema: DataSchema,
-    preview: any[]
+    preview: any[],
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<QueryAnalysis> {
     const prompt = this.buildAnalysisPrompt(query, schema, preview);
 
     try {
-      const response = await this.callLLMWithRetry(prompt, 'query_analysis');
+      const response = await this.callLLMWithRetry(
+        prompt,
+        'query_analysis',
+        conversationHistory
+      );
       const jsonText = this.extractJSONFromResponse(response);
       const parsed = JSON.parse(jsonText);
 
@@ -92,12 +97,17 @@ export class LLMService {
   async generateResponse(
     query: string,
     data: any[],
-    schema: DataSchema
+    schema: DataSchema,
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   ): Promise<AIResponse> {
     const prompt = this.buildResponsePrompt(query, data, schema);
 
     try {
-      const response = await this.callLLMWithRetry(prompt, 'response_generation');
+      const response = await this.callLLMWithRetry(
+        prompt,
+        'response_generation',
+        conversationHistory
+      );
       const jsonText = this.extractJSONFromResponse(response);
       const parsed = JSON.parse(jsonText);
 
@@ -107,6 +117,59 @@ export class LLMService {
     } catch (error) {
       console.error('Error generating response:', error);
       throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Phase 2 with Streaming: Generate response with streaming support
+   * Returns plain text answer (not JSON) for better streaming UX
+   */
+  async *generateResponseStream(
+    query: string,
+    data: any[],
+    schema: DataSchema,
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+  ): AsyncGenerator<string, void, unknown> {
+    // Use plain text prompt for streaming
+    const prompt = this.buildStreamingResponsePrompt(query, data, schema);
+
+    try {
+      const messages: Anthropic.Messages.MessageParam[] = [];
+
+      // Add conversation history if provided
+      if (conversationHistory && conversationHistory.length > 0) {
+        conversationHistory.forEach(msg => {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        });
+      }
+
+      // Add current query
+      messages.push({
+        role: 'user',
+        content: prompt
+      });
+
+      const stream = await this.client.messages.stream({
+        model: this.model,
+        max_tokens: 4096,
+        temperature: 0.3,
+        messages
+      });
+
+      for await (const chunk of stream) {
+        if (
+          chunk.type === 'content_block_delta' &&
+          chunk.delta.type === 'text_delta'
+        ) {
+          yield chunk.delta.text;
+        }
+      }
+    } catch (error) {
+      console.error('Error streaming response:', error);
+      throw new Error(`Failed to stream response: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -258,24 +321,80 @@ Return ONLY valid JSON, no additional text or markdown formatting.`;
   }
 
   /**
+   * Build prompt for streaming response (plain text, not JSON)
+   */
+  private buildStreamingResponsePrompt(
+    query: string,
+    data: any[],
+    schema: DataSchema
+  ): string {
+    const dataPreview = data.slice(0, 20).map(row => JSON.stringify(row)).join('\n');
+    const dataCount = data.length;
+    const columnNames = schema.columns.map(col => col.name).join(', ');
+
+    return `You are a data analysis assistant. A user asked a question about their dataset, and you have the relevant data to answer it.
+
+**User Query:**
+"${query}"
+
+**Available Columns:**
+${columnNames}
+
+**Query Results (${dataCount} rows${dataCount > 20 ? ', showing first 20' : ''}):**
+${dataPreview}
+
+**Your Task:**
+Provide a clear, natural language answer to the user's query. Be conversational, include specific numbers and insights from the data, and keep your response concise (2-4 sentences).
+
+DO NOT return JSON. Just provide the natural language answer directly.
+
+Examples:
+
+Query: "Which product sold the most?"
+Answer: "Based on the data, Widget A has the top sales with $61,500 in revenue, significantly outperforming the other products. This is over 50% more than Widget B, which came in second with $40,000 in revenue."
+
+Query: "What's the total revenue?"
+Answer: "The total revenue across all transactions is $127,450."
+
+Query: "Show me sales by region"
+Answer: "Sales are distributed across four regions: North leads with $45,000, followed by South with $38,500, West with $32,000, and East with $11,950."
+
+Remember: Provide ONLY the natural language answer, no JSON structure.`;
+  }
+
+  /**
    * Call Claude API with retry logic
    */
   private async callLLMWithRetry(
     prompt: string,
     context: string,
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>,
     retryCount = 0
   ): Promise<Anthropic.Messages.Message> {
     try {
+      const messages: Anthropic.Messages.MessageParam[] = [];
+
+      // Add conversation history if provided
+      if (conversationHistory && conversationHistory.length > 0) {
+        conversationHistory.forEach(msg => {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        });
+      }
+
+      // Add current prompt
+      messages.push({
+        role: 'user',
+        content: prompt,
+      });
+
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: 4096,
         temperature: 0.3, // Lower temperature for more consistent JSON output
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        messages
       });
 
       return response;
@@ -287,7 +406,7 @@ Return ONLY valid JSON, no additional text or markdown formatting.`;
         if (isRetryable) {
           console.warn(`Retry ${retryCount + 1}/${this.maxRetries} for ${context}...`);
           await this.sleep(this.retryDelay * Math.pow(2, retryCount)); // Exponential backoff
-          return this.callLLMWithRetry(prompt, context, retryCount + 1);
+          return this.callLLMWithRetry(prompt, context, conversationHistory, retryCount + 1);
         }
       }
 

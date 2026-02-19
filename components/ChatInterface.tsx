@@ -25,7 +25,7 @@ interface ChatInterfaceProps {
   dataSourceId: string;
   schema: DataSchema;
   preview: any[];
-  onQuerySuggestionClick?: (query: string) => void;
+  onQuerySuggestionClick?: (handler: (query: string) => void) => void;
 }
 
 export default function ChatInterface({
@@ -40,7 +40,7 @@ export default function ChatInterface({
   const [loadingMessage, setLoadingMessage] = useState('');
   const [loadingStage, setLoadingStage] = useState<LoadingStage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('claude-sonnet-4-5');
+  const [selectedModel, setSelectedModel] = useState<string>('claude-sonnet-4-20250514');
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +78,10 @@ export default function ChatInterface({
       const request: ChatRequest = {
         query,
         dataSourceId,
-        conversationContext: messages.slice(-5).map((m) => m.content),
+        conversationHistory: messages.slice(-10).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
         model: selectedModel,
       };
 
@@ -178,7 +181,10 @@ export default function ChatInterface({
       const request: ChatRequest = {
         query,
         dataSourceId,
-        conversationContext: messages.slice(-5).map((m) => m.content),
+        conversationHistory: messages.slice(-10).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
         model: selectedModel,
       };
 

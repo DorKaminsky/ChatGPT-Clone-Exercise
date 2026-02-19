@@ -11,7 +11,10 @@ import {
   Stack,
   Button,
   Paper,
-  CircularProgress
+  CircularProgress,
+  Select,
+  MenuItem,
+  FormControl
 } from '@mui/material';
 import {
   Upload,
@@ -27,17 +30,48 @@ import ChatInterface from '@/components/ChatInterface';
 import SuccessConfetti from '@/components/SuccessConfetti';
 import DataPreview from '@/components/DataPreview';
 import SmartInsights from '@/components/SmartInsights';
-import type { UploadResponse } from '@/lib/types';
+import type { UploadResponse, UploadedFile } from '@/lib/types';
 
 export default function Home() {
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [uploadedData, setUploadedData] = useState<UploadResponse | null>(null);
   const [fillQuery, setFillQuery] = useState<((query: string) => void) | null>(null);
   const [loadingSample, setLoadingSample] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
   const handleUploadSuccess = (data: UploadResponse) => {
+    // Add to uploaded files list
+    const newFile: UploadedFile = {
+      id: data.dataSourceId,
+      name: data.fileName,
+      dataSourceId: data.dataSourceId,
+      schema: data.schema,
+      preview: data.preview,
+      uploadedAt: new Date(),
+    };
+
+    setUploadedFiles(prev => [...prev, newFile]);
+    setActiveFileId(data.dataSourceId);
     setUploadedData(data);
     setShowConfetti(true);
+  };
+
+  // Get active file data
+  const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+
+  // Switch active file
+  const handleFileSwitch = (fileId: string) => {
+    const file = uploadedFiles.find(f => f.id === fileId);
+    if (file) {
+      setActiveFileId(fileId);
+      setUploadedData({
+        dataSourceId: file.dataSourceId,
+        fileName: file.name,
+        schema: file.schema,
+        preview: file.preview,
+      });
+    }
   };
 
   const loadSampleData = async () => {
@@ -355,7 +389,7 @@ export default function Home() {
                 alignItems={{ xs: 'flex-start', sm: 'center' }}
                 spacing={2}
               >
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={2} alignItems="center" flex={1}>
                   <Box
                     sx={{
                       width: 40,
@@ -369,22 +403,59 @@ export default function Home() {
                   >
                     <Insights sx={{ color: 'white', fontSize: 20 }} />
                   </Box>
-                  <Box>
-                    <Typography variant="body1" fontWeight={600}>
-                      {uploadedData.fileName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {uploadedData.schema.rowCount.toLocaleString()} rows • {uploadedData.schema.columns.length} columns
-                    </Typography>
-                  </Box>
+                  {uploadedFiles.length > 1 ? (
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <Select
+                        value={activeFileId || ''}
+                        onChange={(e) => handleFileSwitch(e.target.value)}
+                        sx={{ bgcolor: 'white' }}
+                      >
+                        {uploadedFiles.map((file) => (
+                          <MenuItem key={file.id} value={file.id}>
+                            <Box>
+                              <Typography variant="body2" fontWeight={600}>
+                                📄 {file.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {file.schema.rowCount.toLocaleString()} rows • {file.schema.columns.length} cols
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <Box>
+                      <Typography variant="body1" fontWeight={600}>
+                        {uploadedData.fileName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {uploadedData.schema.rowCount.toLocaleString()} rows • {uploadedData.schema.columns.length} columns
+                      </Typography>
+                    </Box>
+                  )}
                 </Stack>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => setUploadedData(null)}
-                >
-                  Upload new file
-                </Button>
+                <Stack direction="row" spacing={1}>
+                  {uploadedFiles.length > 0 && (
+                    <Chip
+                      label={`${uploadedFiles.length} file${uploadedFiles.length > 1 ? 's' : ''}`}
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                    />
+                  )}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      // Reset to upload mode but keep existing files
+                      setUploadedData(null);
+                      setActiveFileId(null);
+                    }}
+                  >
+                    Upload another file
+                  </Button>
+                </Stack>
               </Stack>
             </Paper>
 

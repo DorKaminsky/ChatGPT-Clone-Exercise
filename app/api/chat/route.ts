@@ -7,7 +7,7 @@ import type { ChatRequest, ChatResponse, ChartData } from '@/lib/types';
 export async function POST(request: NextRequest) {
   try {
     const body: ChatRequest = await request.json();
-    const { query, dataSourceId, model } = body;
+    const { query, dataSourceId, conversationHistory, model } = body;
 
     // Validate request
     if (!query || !dataSourceId) {
@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     const analysis = await llmService.analyzeQuery(
       query,
       parsedData.schema,
-      parsedData.preview
+      parsedData.preview,
+      conversationHistory
     );
     console.log('Query analysis:', analysis);
 
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest) {
     const aiResponse = await llmService.generateResponse(
       query,
       dataForLLM,
-      parsedData.schema
+      parsedData.schema,
+      conversationHistory
     );
     console.log('AI response:', aiResponse);
 

@@ -5,9 +5,9 @@ import type { ModelInfo } from '@/lib/types';
 // Define known Claude models to test
 const KNOWN_MODELS = [
   {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 4.5',
-    description: 'Latest Sonnet model - balanced performance and speed',
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4',
+    description: 'Latest Claude 4 model - balanced performance and speed',
   },
   {
     id: 'claude-3-5-sonnet-20241022',
@@ -15,14 +15,9 @@ const KNOWN_MODELS = [
     description: 'Previous Sonnet version - reliable and fast',
   },
   {
-    id: 'claude-opus-4-6',
-    name: 'Claude Opus 4.6',
-    description: 'Most capable model - best for complex reasoning',
-  },
-  {
     id: 'claude-3-opus-20240229',
     name: 'Claude 3 Opus',
-    description: 'Previous Opus version - powerful reasoning',
+    description: 'Most capable Claude 3 - powerful reasoning',
   },
   {
     id: 'claude-3-haiku-20240307',
@@ -62,8 +57,8 @@ export async function GET() {
       }
     }
 
-    // Default to Claude Sonnet 4.5 if available, otherwise first available
-    const defaultModel = availableModels.find(m => m.id === 'claude-sonnet-4-5') || availableModels[0];
+    // Default to Claude Sonnet 4 if available, otherwise first available
+    const defaultModel = availableModels.find(m => m.id === 'claude-sonnet-4-20250514') || availableModels[0];
 
     return NextResponse.json({
       models: availableModels,
