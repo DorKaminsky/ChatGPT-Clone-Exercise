@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   BarChart,
   Bar,
@@ -30,9 +30,14 @@ import {
   Stack,
   Snackbar,
   Alert,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
-import { Download, ZoomIn } from '@mui/icons-material';
+import { Download, ZoomIn, Image as ImageIcon, Description } from '@mui/icons-material';
 import { ChartData } from '@/lib/types';
+import html2canvas from 'html2canvas';
 
 interface ChartRendererProps {
   chartData: ChartData;
@@ -56,6 +61,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
   const { type, data, config } = chartData;
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const menuOpen = Boolean(anchorEl);
 
   // Handle empty data
   if (!data || data.length === 0) {
@@ -71,8 +79,57 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
     );
   }
 
+  // Handle menu open/close
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  // Export chart as image (PNG)
+  const exportAsImage = async () => {
+    handleMenuClose();
+
+    if (!chartRef.current) {
+      setSnackbarMessage('Chart reference not found');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Higher quality
+        logging: false,
+      });
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `chart-${type}-${Date.now()}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          setSnackbarMessage('Chart image downloaded successfully!');
+          setSnackbarOpen(true);
+        }
+      });
+    } catch (error) {
+      console.error('Image export error:', error);
+      setSnackbarMessage('Failed to export chart as image');
+      setSnackbarOpen(true);
+    }
+  };
+
   // Export data as CSV
   const exportToCSV = () => {
+    handleMenuClose();
+
     try {
       const csvContent = convertToCSV(data);
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -84,7 +141,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setSnackbarMessage('Data exported successfully!');
+      setSnackbarMessage('Data exported as CSV successfully!');
       setSnackbarOpen(true);
     } catch (error) {
       console.error('Export error:', error);
@@ -121,8 +178,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
             <IconButton
               size="small"
-              onClick={exportToCSV}
-              title="Export data as CSV"
+              onClick={handleMenuOpen}
+              title="Download chart"
               sx={{
                 bgcolor: 'primary.50',
                 '&:hover': { bgcolor: 'primary.100' },
@@ -130,29 +187,57 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
             >
               <Download fontSize="small" />
             </IconButton>
+            <Menu
+              anchorEl={anchorEl}
+              open={menuOpen}
+              onClose={handleMenuClose}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+            >
+              <MenuItem onClick={exportAsImage}>
+                <ListItemIcon>
+                  <ImageIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Download as Image (PNG)</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={exportToCSV}>
+                <ListItemIcon>
+                  <Description fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Download Data (CSV)</ListItemText>
+              </MenuItem>
+            </Menu>
           </Box>
         )}
 
-        {(() => {
-          switch (type) {
-            case 'bar':
-              return <BarChartComponent data={data} config={config} />;
-            case 'pie':
-              return <PieChartComponent data={data} config={config} />;
-            case 'line':
-              return <LineChartComponent data={data} config={config} />;
-            case 'table':
-              return <TableComponent data={data} config={config} onExport={exportToCSV} />;
-            case 'scatter':
-              return <LineChartComponent data={data} config={config} isScatter />;
-            default:
-              return (
-                <div className="p-4 bg-red-50 text-red-700 rounded-lg">
-                  Unsupported chart type: {type}
-                </div>
-              );
-          }
-        })()}
+        <div ref={chartRef}>
+          {(() => {
+            switch (type) {
+              case 'bar':
+                return <BarChartComponent data={data} config={config} />;
+              case 'pie':
+                return <PieChartComponent data={data} config={config} />;
+              case 'line':
+                return <LineChartComponent data={data} config={config} />;
+              case 'table':
+                return <TableComponent data={data} config={config} onExport={exportToCSV} onExportImage={exportAsImage} />;
+              case 'scatter':
+                return <LineChartComponent data={data} config={config} isScatter />;
+              default:
+                return (
+                  <div className="p-4 bg-red-50 text-red-700 rounded-lg">
+                    Unsupported chart type: {type}
+                  </div>
+                );
+            }
+          })()}
+        </div>
 
         <Snackbar
           open={snackbarOpen}
@@ -471,11 +556,32 @@ const LineChartComponent: React.FC<{
 };
 
 // Table Component
-const TableComponent: React.FC<{ data: any[]; config: any; onExport: () => void }> = ({
+const TableComponent: React.FC<{ data: any[]; config: any; onExport: () => void; onExportImage: () => void }> = ({
   data,
   config,
   onExport,
+  onExportImage,
 }) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const menuOpen = Boolean(anchorEl);
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleExportCSV = () => {
+    handleMenuClose();
+    onExport();
+  };
+
+  const handleExportImage = () => {
+    handleMenuClose();
+    onExportImage();
+  };
   // Extract column names from first row
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
 
@@ -518,8 +624,8 @@ const TableComponent: React.FC<{ data: any[]; config: any; onExport: () => void 
           </Typography>
           <IconButton
             size="small"
-            onClick={onExport}
-            title="Export data as CSV"
+            onClick={handleMenuOpen}
+            title="Download options"
             sx={{
               bgcolor: 'primary.50',
               '&:hover': { bgcolor: 'primary.100' },
@@ -527,6 +633,32 @@ const TableComponent: React.FC<{ data: any[]; config: any; onExport: () => void 
           >
             <Download fontSize="small" />
           </IconButton>
+          <Menu
+            anchorEl={anchorEl}
+            open={menuOpen}
+            onClose={handleMenuClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+          >
+            <MenuItem onClick={handleExportImage}>
+              <ListItemIcon>
+                <ImageIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Download as Image (PNG)</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={handleExportCSV}>
+              <ListItemIcon>
+                <Description fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Download Data (CSV)</ListItemText>
+            </MenuItem>
+          </Menu>
         </Box>
       )}
       <TableContainer sx={{ maxHeight: 400 }}>
