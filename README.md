@@ -2,17 +2,20 @@
 
 An intelligent data analysis tool that combines natural language queries with automatic visualizations. Upload your Excel files, ask questions in plain English, and get instant insights with beautiful charts.
 
-![Powered by Claude AI](https://img.shields.io/badge/AI-Claude%20Sonnet%204.5-7c3aed)
+![Powered by Claude AI](https://img.shields.io/badge/AI-Claude%20Sonnet%204-7c3aed)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![Material-UI](https://img.shields.io/badge/Material--UI-Latest-blue)
+![Material-UI](https://img.shields.io/badge/Material--UI-6-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
 
 ## ✨ Features
 
 - 📊 **Excel File Analysis** - Upload .xlsx/.xls files and query your data instantly
-- 🤖 **AI-Powered Insights** - Claude AI (Sonnet 4.5 or other available models) understands your questions and generates intelligent responses
+- 🤖 **AI-Powered Insights** - Claude AI understands your questions and generates intelligent responses
 - 🎛️ **Model Selection** - Choose from available Claude models based on your API access
-- 📈 **Automatic Visualizations** - AI selects the best chart type (bar, pie, line, table) for your query
-- 💬 **Natural Language Interface** - No SQL or coding required - just ask questions
+- 📈 **Automatic Visualizations** - AI selects the best chart type (bar, pie, line, scatter, table)
+- 💾 **Download Charts** - Export visualizations as PNG images or CSV data
+- 🔄 **Streaming Responses** - ChatGPT-style word-by-word text generation
+- 💬 **Conversation Memory** - Ask follow-up questions with context awareness
 - 🎨 **Modern UI** - Beautiful, responsive interface built with Material-UI
 - ⚡ **Real-Time Processing** - Get answers in seconds
 
@@ -79,7 +82,7 @@ An intelligent data analysis tool that combines natural language queries with au
 
 - **Frontend:** Next.js 16 (App Router), React 19, Material-UI 6
 - **Backend:** Next.js API Routes
-- **AI:** Claude models (Sonnet 4.5, 3.5 Sonnet, and more) via Anthropic SDK
+- **AI:** Claude models (Sonnet 4, 3.5 Sonnet) via Anthropic SDK
 - **Data Processing:** xlsx library for Excel parsing
 - **Visualizations:** Recharts
 - **Type Safety:** TypeScript
@@ -113,26 +116,33 @@ Display: Text + Chart
 ### Project Structure
 
 ```
-chatgpt-clone/
+/
 ├── app/
 │   ├── api/
-│   │   ├── chat/route.ts          # Main chat endpoint
+│   │   ├── chat-stream/route.ts   # Streaming chat endpoint (primary)
+│   │   ├── chat/route.ts          # Non-streaming fallback endpoint
+│   │   ├── models/route.ts        # Model detection endpoint
+│   │   ├── insights/route.ts      # Smart insights endpoint
 │   │   └── data/upload/route.ts   # File upload endpoint
 │   ├── layout.tsx                 # Root layout with MUI theme
-│   ├── page.tsx                   # Main page
+│   ├── page.tsx                   # Main application page
 │   └── globals.css                # Global styles
 ├── components/
-│   ├── ChatInterface.tsx          # Chat UI component
-│   ├── Message.tsx                # Message display component
-│   ├── FileUpload.tsx             # File upload component
-│   └── ChartRenderer.tsx          # Chart visualization component
+│   ├── ChatInterface.tsx          # Chat UI with streaming
+│   ├── Message.tsx                # Message display with markdown
+│   ├── FileUpload.tsx             # Drag-drop file upload
+│   ├── ChartRenderer.tsx          # Chart visualization with download
+│   ├── SmartInsights.tsx          # AI-powered data insights
+│   └── SuccessConfetti.tsx        # Celebration animations
 ├── lib/
-│   ├── llm-service.ts             # Claude API integration
-│   ├── data-service.ts            # Excel parsing & storage
+│   ├── llm-service.ts             # Claude API integration (streaming + non-streaming)
+│   ├── data-service.ts            # Excel parsing & in-memory storage
 │   ├── chart-spec-generator.ts    # Chart data transformation
 │   └── types.ts                   # TypeScript interfaces
-└── public/
-    └── sample-sales-data.xlsx     # Sample dataset
+├── public/
+│   └── sample-sales-data.xlsx     # Sample dataset (20 rows)
+├── CLAUDE.md                      # Development guide for Claude Code
+└── README.md                      # This file
 ```
 
 ## 🎯 Example Queries
@@ -188,29 +198,33 @@ Upload and parse Excel files.
 }
 ```
 
-#### POST /api/chat
-Process natural language queries.
+#### POST /api/chat-stream
+Process natural language queries with streaming (primary endpoint).
 
 **Request:**
 ```json
 {
   "query": "Which product sold most?",
   "dataSourceId": "uuid",
-  "conversationContext": ["previous", "messages"]
+  "conversationHistory": [
+    {"role": "user", "content": "Previous question"},
+    {"role": "assistant", "content": "Previous answer"}
+  ],
+  "model": "claude-sonnet-4-20250514"
 }
 ```
 
-**Response:**
-```json
-{
-  "textResponse": "Product A sold the most...",
-  "visualization": {
-    "type": "bar",
-    "data": [{"name": "A", "value": 100}],
-    "config": {"xAxis": "Product", "yAxis": "Sales"}
-  }
-}
+**Response:** Server-Sent Events (SSE) stream
 ```
+data: {"type":"status","message":"Analyzing..."}
+data: {"type":"text","content":"Product"}
+data: {"type":"text","content":" A"}
+data: {"type":"visualization","data":{...}}
+data: {"type":"done"}
+```
+
+#### POST /api/chat
+Non-streaming fallback endpoint (same request/response structure)
 
 ## 🎨 Chart Types
 
@@ -221,7 +235,12 @@ The AI automatically selects the best visualization:
 | **Bar Chart** | Compare categories | "Which product sold most?" |
 | **Pie Chart** | Show proportions | "Sales % by region?" |
 | **Line Chart** | Trends over time | "Revenue over months?" |
+| **Scatter Plot** | Correlations | "Price vs quantity relationship?" |
 | **Table** | Raw filtered data | "Show orders over $5000" |
+
+All charts support:
+- 📥 **Download as PNG** - High-quality image export
+- 📄 **Download as CSV** - Raw data export
 
 ## 🐛 Troubleshooting
 
@@ -245,24 +264,32 @@ This is an educational project. Feel free to:
 - Suggest features
 - Submit pull requests
 
+## 📝 Model Note
+
+This project was designed to use Claude Opus 4.6 as specified in the original requirements. However, due to API tier limitations, the implementation uses **Claude Sonnet 4** (`claude-sonnet-4-20250514`) as the primary model, with fallback to Claude 3.5 Sonnet.
+
+The architecture is model-agnostic and supports any Claude model. To use Opus 4.6 when available, simply update the model ID in `lib/llm-service.ts:34`.
+
 ## 📄 License
 
 MIT
 
 ## 📚 Documentation
 
-Additional documentation can be found in the `/docs` directory:
-- [CLAUDE.md](docs/CLAUDE.md) - Project guidance for Claude Code
-- [IMPLEMENTATION-TASKS.md](docs/IMPLEMENTATION-TASKS.md) - Development task breakdown
-- [SPEC.md](docs/SPEC.md) - Original project specification
-- [Phase completion docs](docs/) - Detailed phase documentation
+See [CLAUDE.md](CLAUDE.md) for detailed development documentation including:
+- Architecture overview
+- Two-phase LLM processing
+- Server-Sent Events streaming
+- API endpoint specifications
+- Common patterns and examples
 
 ## 🙏 Acknowledgments
 
-- **Claude AI** by Anthropic for AI capabilities (Sonnet 4.5, 3.5 Sonnet, and more)
+- **Claude AI** by Anthropic for AI capabilities
 - **Next.js** for the full-stack framework
 - **Material-UI** for beautiful components
 - **Recharts** for visualization library
+- **Built with Claude Code** - AI-assisted development
 
 ---
 
