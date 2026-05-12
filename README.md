@@ -1,4 +1,4 @@
-# ChatGPT Clone with Data Visualization
+# AI Data Analysis Tool
 
 An intelligent data analysis tool that combines natural language queries with automatic visualizations. Upload your Excel files, ask questions in plain English, and get instant insights with beautiful charts.
 
@@ -30,8 +30,8 @@ An intelligent data analysis tool that combines natural language queries with au
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/DorKaminsky/ChatGPT-Clone-Exercise.git
-   cd ChatGPT-Clone-Exercise
+   git clone https://github.com/DorKaminsky/ai-data-analysis-tool.git
+   cd ai-data-analysis-tool
    ```
 
 2. **Install dependencies:**
@@ -294,3 +294,4 @@ See [CLAUDE.md](CLAUDE.md) for detailed development documentation including:
 ---
 
 **Built as a demonstration of AI-powered data visualization** 🚀
+
