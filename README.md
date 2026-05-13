@@ -7,6 +7,9 @@ An intelligent data analysis tool that combines natural language queries with au
 ![Material-UI](https://img.shields.io/badge/Material--UI-6-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
 
+
+![App Screenshot](docs/screenshot.png)
+
 ## ✨ Features
 
 - 📊 **Excel File Analysis** - Upload .xlsx/.xls files and query your data instantly
